@@ -2,58 +2,69 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 from vehicles import get_years, get_makes, get_models, get_trims, get_vehicle_mpg
-from routing import geocode, get_route, process_route_steps
-from prices import get_live_gas_price, get_fred_baseline_price
+from routing import geocode, get_route, process_route_steps, search_addresses
+from prices import get_fred_baseline_price
 from physics import calculate_segment_fuel
 
-st.set_page_config(page_title="RealGasCostCalc", layout="wide")
+st.set_page_config(page_title="Real Gas Cost Calculator", layout="wide")
 
-st.title("🚗 RealGasCostCalc")
+st.title("🚗 Real Gas Cost Calculator")
 st.write("A physics-based road-trip gas cost calculator utilizing real road data and EPA vehicle ratings.")
 
 # --- SIDEBAR INPUTS ---
 st.sidebar.header("1. Trip Details")
-origin_str = st.sidebar.text_input("Origin Address", "San Francisco, CA")
-origin = None
-if origin_str:
-    origin = geocode(origin_str)
-    if origin:
-        st.sidebar.caption(f"✅ **Verified:** {origin[3]}")
-    else:
-        st.sidebar.error("❌ Origin not found")
 
-dest_str = st.sidebar.text_input("Destination Address", "Los Angeles, CA")
+with st.sidebar.form("trip_form"):
+    origin_str = st.text_input("Origin Address", "San Francisco, CA")
+    dest_str = st.text_input("Destination Address", "Los Angeles, CA")
+    search_btn = st.form_submit_button("Search Addresses")
+
+if search_btn:
+    st.session_state.origin_results = search_addresses(origin_str)
+    st.session_state.dest_results = search_addresses(dest_str)
+
+origin = None
+if "origin_results" in st.session_state and st.session_state.origin_results:
+    origin_labels = [opt["label"] for opt in st.session_state.origin_results]
+    sel_origin = st.sidebar.selectbox("Select exact Origin", origin_labels)
+    if sel_origin:
+        sel_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
+        if sel_dict:
+            origin = (sel_dict["lat"], sel_dict["lon"], sel_dict["state_abbr"], sel_dict["label"])
+
 dest = None
-if dest_str:
-    dest = geocode(dest_str)
-    if dest:
-        st.sidebar.caption(f"✅ **Verified:** {dest[3]}")
-    else:
-        st.sidebar.error("❌ Destination not found")
+if "dest_results" in st.session_state and st.session_state.dest_results:
+    dest_labels = [opt["label"] for opt in st.session_state.dest_results]
+    sel_dest = st.sidebar.selectbox("Select exact Destination", dest_labels)
+    if sel_dest:
+        sel_dict = next((opt for opt in st.session_state.dest_results if opt["label"] == sel_dest), None)
+        if sel_dict:
+            dest = (sel_dict["lat"], sel_dict["lon"], sel_dict["state_abbr"], sel_dict["label"])
 
 round_trip = st.sidebar.checkbox("Round Trip", value=False)
 
 st.sidebar.header("2. Vehicle Selection")
 years = get_years()
-year = st.sidebar.selectbox("Year", years) if years else None
+year = st.sidebar.selectbox("Year", years, index=None, placeholder="Select Year") if years else None
 
 make = None
 if year:
     makes = get_makes(year)
-    make = st.sidebar.selectbox("Make", makes) if makes else None
+    make = st.sidebar.selectbox("Make", makes, index=None, placeholder="Select Make") if makes else None
 
 model = None
 if make:
     models = get_models(year, make)
-    model = st.sidebar.selectbox("Model", models) if models else None
+    model = st.sidebar.selectbox("Model", models, index=None, placeholder="Select Model") if models else None
 
 trim_id = None
 if model:
     trims = get_trims(year, make, model)
     if trims:
         trim_options = {t["text"]: t["value"] for t in trims}
-        trim_text = st.sidebar.selectbox("Trim", list(trim_options.keys()))
-        trim_id = trim_options[trim_text]
+        trim_text = st.sidebar.selectbox("Trim", list(trim_options.keys()), index=None, placeholder="Select Trim")
+        if trim_text:
+            trim_id = trim_options[trim_text]
 
 vehicle_mpg = None
 if trim_id:
@@ -70,28 +81,19 @@ st.sidebar.header("3. Gas Price")
 baseline_price = get_fred_baseline_price()
 st.sidebar.caption(f"📈 US National Average (FRED): **${baseline_price:.2f}/gal**")
 
-manual_price = st.sidebar.number_input("Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1, help="Defaults to FRED average, but you can override it.")
-eia_key = st.sidebar.text_input("EIA API Key (Optional)", type="password", help="Get one for free at eia.gov for state-specific prices.")
+manual_price = st.sidebar.number_input("Manual Override Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1, help="Defaults to FRED average, but you can override it.")
 
 # --- ACTION BUTTON ---
 if st.sidebar.button("Calculate Cost", type="primary"):
     with st.spinner("Analyzing route and fetching data..."):
         # 1. Geocode
         if not origin or not dest:
-            st.error("Could not geocode origin or destination.")
+            st.error("Please search and select an origin and destination address.")
             st.stop()
             
         # 2. Price lookup
-        live_price = get_live_gas_price(eia_key, origin[2]) if eia_key else None
         active_price = manual_price
-        
-        if live_price:
-            st.info(f"Using live EIA gas price for {origin[2]} or US Avg: ${live_price:.2f}/gal")
-            active_price = live_price
-        else:
-            if eia_key:
-                st.warning("EIA lookup failed, falling back to manual price.")
-            st.info(f"Using manual gas price: ${active_price:.2f}/gal")
+        st.info(f"Using gas price: ${active_price:.2f}/gal")
             
         # 3. Routing
         route_data = get_route((origin[0], origin[1]), (dest[0], dest[1]))
