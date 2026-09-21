@@ -64,12 +64,12 @@ def search_addresses(query: str) -> List[Dict[str, Any]]:
         st.error(f"Failed to search address: {e}")
         return []
 
-def geocode(address: str) -> Optional[Tuple[float, float, str]]:
+def geocode(address: str) -> Optional[Tuple[float, float, str, str]]:
     """Fallback geocode that just picks the first result from search."""
     results = search_addresses(address)
     if results:
         res = results[0]
-        return res["lat"], res["lon"], res["state_abbr"]
+        return res["lat"], res["lon"], res["state_abbr"], res["label"]
     return None
 
 def get_route(origin: Tuple[float, float], dest: Tuple[float, float]) -> Optional[Dict[str, Any]]:
@@ -161,7 +161,9 @@ def process_route_steps(route_data: Dict[str, Any]) -> pd.DataFrame:
             "distance_mi": dist_mi,
             "duration_h": dur_h,
             "avg_speed_mph": avg_speed_mph,
-            "geometry": geom
+            "geometry": geom,
+            "speed_limit_mph": avg_speed_mph,
+            "speed_source": "OSRM Step"
         })
         
     # Fetch elevations

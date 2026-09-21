@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 import pydeck as pdk
 from vehicles import get_years, get_makes, get_models, get_trims, get_vehicle_mpg
-from routing import geocode, search_addresses, get_route, process_route_steps
-from prices import get_live_gas_price
+from routing import geocode, get_route, process_route_steps
+from prices import get_live_gas_price, get_fred_baseline_price
 from physics import calculate_segment_fuel
 
 st.set_page_config(page_title="RealGasCostCalc", layout="wide")
@@ -13,15 +13,23 @@ st.write("A physics-based road-trip gas cost calculator utilizing real road data
 
 # --- SIDEBAR INPUTS ---
 st.sidebar.header("1. Trip Details")
-origin_str = st.sidebar.text_input("Search Origin", "San Francisco, CA")
-origin_results = search_addresses(origin_str) if origin_str else []
-origin_options = {res["label"]: res for res in origin_results}
-origin_selected_label = st.sidebar.selectbox("Select Origin", list(origin_options.keys())) if origin_options else None
+origin_str = st.sidebar.text_input("Origin Address", "San Francisco, CA")
+origin = None
+if origin_str:
+    origin = geocode(origin_str)
+    if origin:
+        st.sidebar.caption(f"✅ **Verified:** {origin[3]}")
+    else:
+        st.sidebar.error("❌ Origin not found")
 
-dest_str = st.sidebar.text_input("Search Destination", "Los Angeles, CA")
-dest_results = search_addresses(dest_str) if dest_str else []
-dest_options = {res["label"]: res for res in dest_results}
-dest_selected_label = st.sidebar.selectbox("Select Destination", list(dest_options.keys())) if dest_options else None
+dest_str = st.sidebar.text_input("Destination Address", "Los Angeles, CA")
+dest = None
+if dest_str:
+    dest = geocode(dest_str)
+    if dest:
+        st.sidebar.caption(f"✅ **Verified:** {dest[3]}")
+    else:
+        st.sidebar.error("❌ Destination not found")
 
 round_trip = st.sidebar.checkbox("Round Trip", value=False)
 
@@ -59,25 +67,18 @@ manual_city_mpg = st.sidebar.number_input("Override City MPG", value=float(vehic
 manual_hwy_mpg = st.sidebar.number_input("Override Highway MPG", value=float(vehicle_mpg['highway']) if vehicle_mpg else 35.0)
 
 st.sidebar.header("3. Gas Price")
-eia_key = st.sidebar.text_input("EIA API Key (Optional)", type="password", help="Get one for free at eia.gov. Defaults to manual price if empty.")
-manual_price = st.sidebar.number_input("Manual Gas Price ($/gal)", min_value=0.1, value=3.50, step=0.1)
+baseline_price = get_fred_baseline_price()
+st.sidebar.caption(f"📈 US National Average (FRED): **${baseline_price:.2f}/gal**")
+
+manual_price = st.sidebar.number_input("Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1, help="Defaults to FRED average, but you can override it.")
+eia_key = st.sidebar.text_input("EIA API Key (Optional)", type="password", help="Get one for free at eia.gov for state-specific prices.")
 
 # --- ACTION BUTTON ---
 if st.sidebar.button("Calculate Cost", type="primary"):
     with st.spinner("Analyzing route and fetching data..."):
         # 1. Geocode
-        origin = None
-        if origin_selected_label:
-            res = origin_options[origin_selected_label]
-            origin = (res["lat"], res["lon"], res["state_abbr"])
-            
-        dest = None
-        if dest_selected_label:
-            res = dest_options[dest_selected_label]
-            dest = (res["lat"], res["lon"], res["state_abbr"])
-        
         if not origin or not dest:
-            st.error("Could not determine origin or destination. Please make sure both are selected.")
+            st.error("Could not geocode origin or destination.")
             st.stop()
             
         # 2. Price lookup
@@ -117,7 +118,7 @@ if st.sidebar.button("Calculate Cost", type="primary"):
             gals, eff = calculate_segment_fuel(
                 distance_mi=row["distance_mi"],
                 speed_mph=row["avg_speed_mph"],
-                speed_limit_mph=0.0, # Removed speed limit heuristic
+                speed_limit_mph=row.get("speed_limit_mph", 0),
                 grade_pct=row.get("grade_pct", 0),
                 city_mpg=manual_city_mpg,
                 highway_mpg=manual_hwy_mpg
@@ -176,11 +177,12 @@ if st.sidebar.button("Calculate Cost", type="primary"):
             
         # Table
         st.subheader("Segment Breakdown")
-        display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "grade_pct", "effective_mpg", "cost"]].copy()
+        display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "speed_limit_mph", "speed_source", "grade_pct", "effective_mpg", "cost"]].copy()
         
         # Formatting for readability
         display_df["distance_mi"] = display_df["distance_mi"].map("{:.2f}".format)
         display_df["avg_speed_mph"] = display_df["avg_speed_mph"].map("{:.1f}".format)
+        display_df["speed_limit_mph"] = display_df["speed_limit_mph"].map("{:.0f}".format)
         display_df["grade_pct"] = display_df["grade_pct"].map("{:.1f}%".format)
         display_df["effective_mpg"] = display_df["effective_mpg"].map("{:.1f}".format)
         display_df["cost"] = display_df["cost"].map("${:.2f}".format)
