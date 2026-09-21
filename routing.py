@@ -161,9 +161,7 @@ def process_route_steps(route_data: Dict[str, Any]) -> pd.DataFrame:
             "distance_mi": dist_mi,
             "duration_h": dur_h,
             "avg_speed_mph": avg_speed_mph,
-            "geometry": geom,
-            "speed_limit_mph": avg_speed_mph,
-            "speed_source": "OSRM Step"
+            "geometry": geom
         })
         
     # Fetch elevations

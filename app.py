@@ -179,12 +179,11 @@ if st.sidebar.button("Calculate Cost", type="primary"):
             
         # Table
         st.subheader("Segment Breakdown")
-        display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "speed_limit_mph", "speed_source", "grade_pct", "effective_mpg", "cost"]].copy()
+        display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "grade_pct", "effective_mpg", "cost"]].copy()
         
         # Formatting for readability
         display_df["distance_mi"] = display_df["distance_mi"].map("{:.2f}".format)
         display_df["avg_speed_mph"] = display_df["avg_speed_mph"].map("{:.1f}".format)
-        display_df["speed_limit_mph"] = display_df["speed_limit_mph"].map("{:.0f}".format)
         display_df["grade_pct"] = display_df["grade_pct"].map("{:.1f}%".format)
         display_df["effective_mpg"] = display_df["effective_mpg"].map("{:.1f}".format)
         display_df["cost"] = display_df["cost"].map("${:.2f}".format)
