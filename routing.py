@@ -72,14 +72,16 @@ def geocode(address: str) -> Optional[Tuple[float, float, str, str]]:
         return res["lat"], res["lon"], res["state_abbr"], res["label"]
     return None
 
-def get_route(origin: Tuple[float, float], dest: Tuple[float, float]) -> Optional[Dict[str, Any]]:
-    """Fetch route from OSRM."""
+@st.cache_data(ttl=3600)
+def get_route(origin: Tuple[float, float], dest: Tuple[float, float]) -> Optional[List[Dict[str, Any]]]:
+    """Fetch routes from OSRM including alternatives."""
     url = f"http://router.project-osrm.org/route/v1/driving/{origin[1]},{origin[0]};{dest[1]},{dest[0]}"
     params = {
         "steps": "true",
         "geometries": "geojson",
         "overview": "full",
-        "annotations": "true"
+        "annotations": "true",
+        "alternatives": "2"
     }
     
     try:
@@ -87,7 +89,7 @@ def get_route(origin: Tuple[float, float], dest: Tuple[float, float]) -> Optiona
         response.raise_for_status()
         data = response.json()
         if data.get("code") == "Ok" and len(data["routes"]) > 0:
-            return data["routes"][0]
+            return data["routes"]
     except Exception as e:
         st.error(f"Failed to fetch route from OSRM: {e}")
         
@@ -123,6 +125,7 @@ def get_elevations(locations: List[Tuple[float, float]]) -> List[float]:
         
     return elevations
 
+@st.cache_data(ttl=3600)
 def process_route_steps(route_data: Dict[str, Any]) -> pd.DataFrame:
     """Process OSRM steps into a DataFrame with distances, speeds, and elevations."""
     legs = route_data.get("legs", [])
