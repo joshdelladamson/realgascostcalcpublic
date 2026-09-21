@@ -74,7 +74,7 @@ def geocode(address: str) -> Optional[Tuple[float, float, str, str]]:
 
 def get_route(origin: Tuple[float, float], dest: Tuple[float, float]) -> Optional[Dict[str, Any]]:
     """Fetch route from OSRM."""
-    url = f"https://router.project-osrm.org/route/v1/driving/{origin[1]},{origin[0]};{dest[1]},{dest[0]}"
+    url = f"http://router.project-osrm.org/route/v1/driving/{origin[1]},{origin[0]};{dest[1]},{dest[0]}"
     params = {
         "steps": "true",
         "geometries": "geojson",
