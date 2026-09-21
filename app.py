@@ -204,14 +204,15 @@ if st.session_state.get("calculate", False):
         st.subheader("Segment Breakdown")
         
     df_steps["cumulative_cost"] = df_steps["cost"].cumsum()
-    display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "grade_pct", "effective_mpg", "cumulative_cost"]].copy()
-    display_df.rename(columns={"cumulative_cost": "Running Total Cost"}, inplace=True)
+    display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "grade_pct", "effective_mpg", "cost", "cumulative_cost"]].copy()
+    display_df.rename(columns={"cost": "Segment Cost", "cumulative_cost": "Running Total"}, inplace=True)
     
     # Formatting for readability
     display_df["distance_mi"] = display_df["distance_mi"].map("{:.2f}".format)
     display_df["avg_speed_mph"] = display_df["avg_speed_mph"].map("{:.1f}".format)
     display_df["grade_pct"] = display_df["grade_pct"].map("{:.1f}%".format)
     display_df["effective_mpg"] = display_df["effective_mpg"].map("{:.1f}".format)
-    display_df["Running Total Cost"] = display_df["Running Total Cost"].map("${:.2f}".format)
+    display_df["Segment Cost"] = display_df["Segment Cost"].map("${:.2f}".format)
+    display_df["Running Total"] = display_df["Running Total"].map("${:.2f}".format)
     
     st.dataframe(display_df, use_container_width=True)
