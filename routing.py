@@ -6,15 +6,30 @@ from typing import Dict, List, Tuple, Any, Optional
 import time
 
 def search_addresses(query: str) -> List[Dict[str, Any]]:
-    """Search for addresses using Photon API."""
+    """Search for addresses using Photon API, with a Nominatim fallback."""
     if not query:
         return []
         
     url = "https://photon.komoot.io/api/"
     params = {"q": query, "limit": 5}
     headers = {"User-Agent": "RealGasCostCalc/1.0 (Python requests)"}
+    
+    us_states = {
+        "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
+        "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
+        "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
+        "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+        "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
+        "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+        "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
+        "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+        "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
+        "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
+    }
+    
+    # 1. Try Photon First
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response = requests.get(url, params=params, headers=headers, timeout=5)
         response.raise_for_status()
         data = response.json()
         results = []
@@ -28,23 +43,8 @@ def search_addresses(query: str) -> List[Dict[str, Any]]:
                 state = props.get("state", "")
                 country = props.get("country", "")
                 
-                # Build a display label
                 parts = [p for p in [name, city, state, country] if p]
                 label = ", ".join(parts)
-                
-                # State mapping for US
-                us_states = {
-                    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA",
-                    "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE", "Florida": "FL", "Georgia": "GA",
-                    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA",
-                    "Kansas": "KS", "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
-                    "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO",
-                    "Montana": "MT", "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ",
-                    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH",
-                    "Oklahoma": "OK", "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
-                    "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT",
-                    "Virginia": "VA", "Washington": "WA", "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY"
-                }
                 
                 state_abbr = "US"
                 if state:
@@ -59,10 +59,50 @@ def search_addresses(query: str) -> List[Dict[str, Any]]:
                     "lon": float(lon),
                     "state_abbr": state_abbr
                 })
+        if results:
+            return results
+    except Exception:
+        pass
+        
+    # 2. Fallback to Nominatim
+    nom_url = "https://nominatim.openstreetmap.org/search"
+    nom_params = {"q": query, "format": "json", "limit": 5, "addressdetails": 1}
+    try:
+        response = requests.get(nom_url, params=nom_params, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        results = []
+        for item in data:
+            lat = float(item["lat"])
+            lon = float(item["lon"])
+            address = item.get("address", {})
+            
+            name = address.get("road", address.get("amenity", address.get("suburb", "")))
+            city = address.get("city", address.get("town", address.get("village", "")))
+            state = address.get("state", "")
+            country = address.get("country", "")
+            
+            parts = [p for p in [name, city, state, country] if p]
+            label = ", ".join(parts)
+            if not label:
+                label = item.get("display_name", "Unknown Location")
+                
+            state_abbr = "US"
+            if state:
+                state_abbr = state[:2].upper()
+                
+            results.append({
+                "label": label,
+                "lat": lat,
+                "lon": lon,
+                "state_abbr": state_abbr
+            })
         return results
     except Exception as e:
-        st.error(f"Failed to search address: {e}")
+        import streamlit as st
+        st.error(f"Geocoding API Error: Both Photon and Nominatim failed. ({e})")
         return []
+
 
 def geocode(address: str) -> Optional[Tuple[float, float, str, str]]:
     """Fallback geocode that just picks the first result from search."""
