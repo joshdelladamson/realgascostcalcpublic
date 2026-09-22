@@ -136,14 +136,14 @@ def process_route_steps(route_data: Dict[str, Any]) -> pd.DataFrame:
     if not legs:
         return pd.DataFrame()
         
-    steps = legs[0].get("steps", [])
-    
     processed_steps = []
     points_to_elevate = []
     
-    for step in steps:
-        dist_m = step.get("distance", 0)
-        dur_s = step.get("duration", 0)
+    for leg in legs:
+        steps = leg.get("steps", [])
+        for step in steps:
+            dist_m = step.get("distance", 0)
+            dur_s = step.get("duration", 0)
         
         # Convert to miles and hours
         dist_mi = dist_m * 0.000621371
