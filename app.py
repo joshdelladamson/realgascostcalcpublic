@@ -24,16 +24,15 @@ if col_rem.button("➖ Remove Stop"):
     if st.session_state.num_stops > 0:
         st.session_state.num_stops -= 1
 
-with st.form("trip_form"):
-    origin_str = st.text_input("Origin Address", "San Francisco, CA")
+origin_str = st.text_input("Origin Address", "San Francisco, CA")
+
+waypoints_strs = []
+for i in range(st.session_state.num_stops):
+    waypoints_strs.append(st.text_input(f"Stop {i+1} Address", key=f"stop_in_{i}"))
     
-    waypoints_strs = []
-    for i in range(st.session_state.num_stops):
-        waypoints_strs.append(st.text_input(f"Stop {i+1} Address", key=f"stop_in_{i}"))
-        
-    dest_str = st.text_input("Destination Address", "Los Angeles, CA")
-    st.checkbox("Round Trip", value=False, key="round_trip")
-    search_btn = st.form_submit_button("Search Addresses")
+dest_str = st.text_input("Destination Address", "Los Angeles, CA")
+st.checkbox("Round Trip", value=False, key="round_trip")
+search_btn = st.button("Search Addresses")
 
 if search_btn:
     st.session_state.origin_results = search_addresses(origin_str)
@@ -47,13 +46,16 @@ if search_btn:
 route_coords = []
 
 # Origin
-if "origin_results" in st.session_state and st.session_state.origin_results:
-    origin_labels = [opt["label"] for opt in st.session_state.origin_results]
-    sel_origin = st.selectbox("Select exact Origin", origin_labels)
-    if sel_origin:
-        sel_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
-        if sel_dict:
-            route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+if "origin_results" in st.session_state:
+    if st.session_state.origin_results:
+        origin_labels = [opt["label"] for opt in st.session_state.origin_results]
+        sel_origin = st.selectbox("Select exact Origin", origin_labels)
+        if sel_origin:
+            sel_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
+            if sel_dict:
+                route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+    else:
+        st.warning("Could not find an address match for the Origin.")
 
 # Waypoints
 if "waypoints_results" in st.session_state and st.session_state.waypoints_results:
@@ -65,15 +67,20 @@ if "waypoints_results" in st.session_state and st.session_state.waypoints_result
                 sel_dict = next((opt for opt in w_results if opt["label"] == sel), None)
                 if sel_dict:
                     route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+        else:
+            st.warning(f"Could not find an address match for Stop {i+1}. Please try a different search.")
 
 # Destination
-if "dest_results" in st.session_state and st.session_state.dest_results:
-    dest_labels = [opt["label"] for opt in st.session_state.dest_results]
-    sel_dest = st.selectbox("Select exact Destination", dest_labels)
-    if sel_dest:
-        sel_dict = next((opt for opt in st.session_state.dest_results if opt["label"] == sel_dest), None)
-        if sel_dict:
-            route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+if "dest_results" in st.session_state:
+    if st.session_state.dest_results:
+        dest_labels = [opt["label"] for opt in st.session_state.dest_results]
+        sel_dest = st.selectbox("Select exact Destination", dest_labels)
+        if sel_dest:
+            sel_dict = next((opt for opt in st.session_state.dest_results if opt["label"] == sel_dest), None)
+            if sel_dict:
+                route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+    else:
+        st.warning("Could not find an address match for the Destination.")
 
 st.header("2. Vehicle Selection")
 col1, col2, col3, col4 = st.columns(4)
