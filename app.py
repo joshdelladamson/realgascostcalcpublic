@@ -214,8 +214,10 @@ with col_mpg2:
         sc2.button("➖", key="rm_hwy", on_click=toggle_hwy, help="Remove Highway Override")
 
 st.header("3. Gas Price")
-baseline_price = get_fred_baseline_price()
-st.caption(f"📈 US National Average (FRED): **${baseline_price:.2f}/gal**")
+fuel_grade = st.radio("Select Fuel Grade", ["Regular", "Midgrade (Blend)", "Premium", "Diesel"], horizontal=True)
+
+baseline_price = get_fred_baseline_price(fuel_grade)
+st.caption(f"📈 US National Average ({fuel_grade}): **${baseline_price:.2f}/gal**")
 
 manual_price = None
 if not st.session_state.show_gas_override:

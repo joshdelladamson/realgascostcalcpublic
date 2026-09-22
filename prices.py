@@ -5,9 +5,19 @@ from typing import Optional
 
 
 @st.cache_data(ttl=86400)
-def get_fred_baseline_price() -> float:
-    """Fetch the latest US Regular All Formulations Gas Price from FRED as a free baseline."""
-    url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GASREGW"
+def get_fred_baseline_price(grade: str = "Regular") -> float:
+    """Fetch the latest US Gas Price from FRED as a free baseline based on grade."""
+    
+    grade_map = {
+        "Regular": "GASREGW",
+        "Midgrade (Blend)": "GASMIDW",
+        "Premium": "GASPRMW",
+        "Diesel": "GASDESW"
+    }
+    
+    series_id = grade_map.get(grade, "GASREGW")
+    url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+    
     try:
         response = requests.get(url, timeout=10)
         response.raise_for_status()
