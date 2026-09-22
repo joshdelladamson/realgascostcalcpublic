@@ -73,9 +73,13 @@ def geocode(address: str) -> Optional[Tuple[float, float, str, str]]:
     return None
 
 @st.cache_data(ttl=3600)
-def get_route(origin: Tuple[float, float], dest: Tuple[float, float]) -> Optional[List[Dict[str, Any]]]:
-    """Fetch routes from OSRM including alternatives."""
-    url = f"http://router.project-osrm.org/route/v1/driving/{origin[1]},{origin[0]};{dest[1]},{dest[0]}"
+def get_route(waypoints: List[Tuple[float, float]]) -> Optional[List[Dict[str, Any]]]:
+    """Fetch routes from OSRM including alternatives and waypoints."""
+    if len(waypoints) < 2:
+        return None
+        
+    coord_str = ";".join([f"{w[1]},{w[0]}" for w in waypoints])
+    url = f"http://router.project-osrm.org/route/v1/driving/{coord_str}"
     params = {
         "steps": "true",
         "geometries": "geojson",

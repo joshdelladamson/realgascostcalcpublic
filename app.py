@@ -11,58 +11,78 @@ st.set_page_config(page_title="Real Gas Cost Calculator", layout="wide")
 st.title("🚗 Real Gas Cost Calculator")
 st.write("A physics-based road-trip gas cost calculator utilizing real road data and EPA vehicle ratings.")
 
-# --- SIDEBAR INPUTS ---
-st.sidebar.header("1. Trip Details")
+# --- MAIN PAGE INPUTS ---
+st.header("1. Trip Details")
 
-with st.sidebar.form("trip_form"):
+with st.form("trip_form"):
     origin_str = st.text_input("Origin Address", "San Francisco, CA")
+    waypoints_str = st.text_area("Additional Stops (one per line, optional)", placeholder="e.g., Las Vegas, NV\nZion National Park")
     dest_str = st.text_input("Destination Address", "Los Angeles, CA")
+    st.checkbox("Round Trip", value=False, key="round_trip")
     search_btn = st.form_submit_button("Search Addresses")
 
 if search_btn:
     st.session_state.origin_results = search_addresses(origin_str)
     st.session_state.dest_results = search_addresses(dest_str)
+    
+    # Process waypoints
+    waypoint_lines = [line.strip() for line in waypoints_str.split('\n') if line.strip()]
+    st.session_state.waypoints_results = [search_addresses(w) for w in waypoint_lines]
 
-origin = None
+# Collect all confirmed coordinates
+route_coords = []
+
+# Origin
 if "origin_results" in st.session_state and st.session_state.origin_results:
     origin_labels = [opt["label"] for opt in st.session_state.origin_results]
-    sel_origin = st.sidebar.selectbox("Select exact Origin", origin_labels)
+    sel_origin = st.selectbox("Select exact Origin", origin_labels)
     if sel_origin:
         sel_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
         if sel_dict:
-            origin = (sel_dict["lat"], sel_dict["lon"], sel_dict["state_abbr"], sel_dict["label"])
+            route_coords.append((sel_dict["lat"], sel_dict["lon"]))
 
-dest = None
+# Waypoints
+if "waypoints_results" in st.session_state and st.session_state.waypoints_results:
+    for i, w_results in enumerate(st.session_state.waypoints_results):
+        if w_results:
+            labels = [opt["label"] for opt in w_results]
+            sel = st.selectbox(f"Select exact Stop {i+1}", labels, key=f"wp_{i}")
+            if sel:
+                sel_dict = next((opt for opt in w_results if opt["label"] == sel), None)
+                if sel_dict:
+                    route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+
+# Destination
 if "dest_results" in st.session_state and st.session_state.dest_results:
     dest_labels = [opt["label"] for opt in st.session_state.dest_results]
-    sel_dest = st.sidebar.selectbox("Select exact Destination", dest_labels)
+    sel_dest = st.selectbox("Select exact Destination", dest_labels)
     if sel_dest:
         sel_dict = next((opt for opt in st.session_state.dest_results if opt["label"] == sel_dest), None)
         if sel_dict:
-            dest = (sel_dict["lat"], sel_dict["lon"], sel_dict["state_abbr"], sel_dict["label"])
+            route_coords.append((sel_dict["lat"], sel_dict["lon"]))
 
-round_trip = st.sidebar.checkbox("Round Trip", value=False)
+st.header("2. Vehicle Selection")
+col1, col2, col3, col4 = st.columns(4)
 
-st.sidebar.header("2. Vehicle Selection")
 years = get_years()
-year = st.sidebar.selectbox("Year", years, index=None, placeholder="Select Year") if years else None
+year = col1.selectbox("Year", years, index=None, placeholder="Select Year") if years else None
 
 make = None
 if year:
     makes = get_makes(year)
-    make = st.sidebar.selectbox("Make", makes, index=None, placeholder="Select Make") if makes else None
+    make = col2.selectbox("Make", makes, index=None, placeholder="Select Make") if makes else None
 
 model = None
 if make:
     models = get_models(year, make)
-    model = st.sidebar.selectbox("Model", models, index=None, placeholder="Select Model") if models else None
+    model = col3.selectbox("Model", models, index=None, placeholder="Select Model") if models else None
 
 trim_id = None
 if model:
     trims = get_trims(year, make, model)
     if trims:
         trim_options = {t["text"]: t["value"] for t in trims}
-        trim_text = st.sidebar.selectbox("Trim", list(trim_options.keys()), index=None, placeholder="Select Trim")
+        trim_text = col4.selectbox("Trim", list(trim_options.keys()), index=None, placeholder="Select Trim")
         if trim_text:
             trim_id = trim_options[trim_text]
 
@@ -70,36 +90,36 @@ vehicle_mpg = None
 if trim_id:
     vehicle_mpg = get_vehicle_mpg(trim_id)
     if vehicle_mpg:
-        st.sidebar.success(f"EPA Rating: {vehicle_mpg['city']} City / {vehicle_mpg['highway']} Hwy MPG")
+        st.success(f"EPA Rating: {vehicle_mpg['city']} City / {vehicle_mpg['highway']} Hwy MPG")
     else:
-        st.sidebar.warning("Could not fetch EPA rating.")
+        st.warning("Could not fetch EPA rating.")
 
-manual_city_mpg = st.sidebar.number_input("Override City MPG", value=float(vehicle_mpg['city']) if vehicle_mpg else 25.0)
-manual_hwy_mpg = st.sidebar.number_input("Override Highway MPG", value=float(vehicle_mpg['highway']) if vehicle_mpg else 35.0)
+col_mpg1, col_mpg2 = st.columns(2)
+manual_city_mpg = col_mpg1.number_input("Override City MPG", value=float(vehicle_mpg['city']) if vehicle_mpg else 25.0)
+manual_hwy_mpg = col_mpg2.number_input("Override Highway MPG", value=float(vehicle_mpg['highway']) if vehicle_mpg else 35.0)
 
-st.sidebar.header("3. Gas Price")
+st.header("3. Gas Price")
 baseline_price = get_fred_baseline_price()
-st.sidebar.caption(f"📈 US National Average (FRED): **${baseline_price:.2f}/gal**")
+st.caption(f"📈 US National Average (FRED): **${baseline_price:.2f}/gal**")
 
-manual_price = st.sidebar.number_input("Manual Override Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1, help="Defaults to FRED average, but you can override it.")
+manual_price = st.number_input("Manual Override Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1, help="Defaults to FRED average, but you can override it.")
 
 # --- ACTION BUTTON ---
-if st.sidebar.button("Calculate Cost", type="primary"):
+st.header("4. Calculate")
+if st.button("Calculate Cost", type="primary"):
     st.session_state.calculate = True
 
 if st.session_state.get("calculate", False):
-    # 1. Geocode
-    if not origin or not dest:
-        st.error("Please search and select an origin and destination address.")
+    if len(route_coords) < 2:
+        st.error("Please search and select at least an origin and destination address.")
         st.stop()
         
-    # 2. Price lookup
     active_price = manual_price
-    st.sidebar.info(f"Using gas price: ${active_price:.2f}/gal")
+    st.info(f"Using gas price: ${active_price:.2f}/gal")
         
     # 3. Routing
     with st.spinner("Finding routes..."):
-        routes = get_route((origin[0], origin[1]), (dest[0], dest[1]))
+        routes = get_route(route_coords)
         
     if not routes:
         st.error("Failed to fetch route from OSRM.")
@@ -156,13 +176,14 @@ if st.session_state.get("calculate", False):
     df_steps["cost"] = df_steps["gallons_used"] * active_price
     
     # Round trip logic
-    multiplier = 2 if round_trip else 1
+    multiplier = 2 if st.session_state.get('round_trip', False) else 1
     total_gallons *= multiplier
     total_distance *= multiplier
     total_cost = total_gallons * active_price
     
     # --- RESULTS UI ---
     st.header("Trip Results")
+    st.divider()
     
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Cost", f"${total_cost:.2f}")
@@ -189,8 +210,8 @@ if st.session_state.get("calculate", False):
             get_width=5
         )
         view_state = pdk.ViewState(
-            longitude=origin[1],
-            latitude=origin[0],
+            longitude=route_coords[0][1],
+            latitude=route_coords[0][0],
             zoom=5,
             pitch=0
         )
@@ -198,7 +219,7 @@ if st.session_state.get("calculate", False):
         st.pydeck_chart(r)
         
     # Table
-    if round_trip:
+    if multiplier == 2:
         st.subheader("One-Way Segment Breakdown (Multiplied by 2 for Totals above)")
     else:
         st.subheader("Segment Breakdown")
