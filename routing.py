@@ -145,31 +145,31 @@ def process_route_steps(route_data: Dict[str, Any]) -> pd.DataFrame:
             dist_m = step.get("distance", 0)
             dur_s = step.get("duration", 0)
         
-        # Convert to miles and hours
-        dist_mi = dist_m * 0.000621371
-        dur_h = dur_s / 3600.0
-        
-        avg_speed_mph = (dist_mi / dur_h) if dur_h > 0 else 0
-        
-        # Get coordinates for elevation
-        # Geometry is GeoJSON LineString
-        geom = step.get("geometry", {}).get("coordinates", [])
-        if geom and len(geom) >= 2:
-            start_lon, start_lat = geom[0]
-            end_lon, end_lat = geom[-1]
-            points_to_elevate.append((start_lat, start_lon))
-            points_to_elevate.append((end_lat, end_lon))
-        else:
-            points_to_elevate.append((0, 0))
-            points_to_elevate.append((0, 0))
+            # Convert to miles and hours
+            dist_mi = dist_m * 0.000621371
+            dur_h = dur_s / 3600.0
             
-        processed_steps.append({
-            "name": step.get("name", "Unnamed Road"),
-            "distance_mi": dist_mi,
-            "duration_h": dur_h,
-            "avg_speed_mph": avg_speed_mph,
-            "geometry": geom
-        })
+            avg_speed_mph = (dist_mi / dur_h) if dur_h > 0 else 0
+            
+            # Get coordinates for elevation
+            # Geometry is GeoJSON LineString
+            geom = step.get("geometry", {}).get("coordinates", [])
+            if geom and len(geom) >= 2:
+                start_lon, start_lat = geom[0]
+                end_lon, end_lat = geom[-1]
+                points_to_elevate.append((start_lat, start_lon))
+                points_to_elevate.append((end_lat, end_lon))
+            else:
+                points_to_elevate.append((0, 0))
+                points_to_elevate.append((0, 0))
+                
+            processed_steps.append({
+                "name": step.get("name", "Unnamed Road"),
+                "distance_mi": dist_mi,
+                "duration_h": dur_h,
+                "avg_speed_mph": avg_speed_mph,
+                "geometry": geom
+            })
         
     # Fetch elevations
     if points_to_elevate:
