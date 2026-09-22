@@ -14,6 +14,9 @@ st.write("A physics-based road-trip gas cost calculator utilizing real road data
 # --- MAIN PAGE INPUTS ---
 st.header("1. Trip Details")
 
+origin_str = st.text_input("Origin Address", "San Francisco, CA")
+dest_str = st.text_input("Destination Address", "Los Angeles, CA")
+
 if "num_stops" not in st.session_state:
     st.session_state.num_stops = 0
 
@@ -24,15 +27,31 @@ if col_rem.button("➖ Remove Stop"):
     if st.session_state.num_stops > 0:
         st.session_state.num_stops -= 1
 
-origin_str = st.text_input("Origin Address", "San Francisco, CA")
-
 waypoints_strs = []
 for i in range(st.session_state.num_stops):
     waypoints_strs.append(st.text_input(f"Stop {i+1} Address", key=f"stop_in_{i}"))
     
-dest_str = st.text_input("Destination Address", "Los Angeles, CA")
 st.checkbox("Round Trip", value=False, key="round_trip")
-search_btn = st.button("Search Addresses")
+search_btn = st.button("Verify Addresses")
+
+import streamlit.components.v1 as components
+components.html(
+    """
+    <script>
+    const doc = window.parent.document;
+    const buttons = Array.from(doc.querySelectorAll('button'));
+    const verifyBtn = buttons.find(b => b.innerText.includes('Verify Addresses'));
+    if (verifyBtn) {
+        verifyBtn.style.backgroundColor = 'red';
+        verifyBtn.style.color = 'black';
+        verifyBtn.style.fontWeight = 'bold';
+        verifyBtn.style.borderColor = 'darkred';
+    }
+    </script>
+    """,
+    height=0,
+    width=0
+)
 
 if search_btn:
     st.session_state.origin_results = search_addresses(origin_str)
