@@ -26,7 +26,7 @@ def rem_ret(wp_id): st.session_state.ret_wps.remove(wp_id)
 st.header("1. Trip Details")
 st.markdown("**Select your origin & destination address, be sure to hit 'Verify Addresses' before continuing to Vehicle Selection**")
 
-origin_str = st.text_input("Origin Address", "San Francisco, CA")
+origin_str = st.text_input("**Origin Address**", "San Francisco, CA")
 
 for idx, wp_id in enumerate(st.session_state.fwd_wps):
     c1, c2 = st.columns([11, 1])
@@ -36,7 +36,7 @@ for idx, wp_id in enumerate(st.session_state.fwd_wps):
     
 st.button("➕ Add Stop", on_click=add_fwd)
 
-dest_str = st.text_input("Destination Address", "Los Angeles, CA")
+dest_str = st.text_input("**Destination Address**", "Los Angeles, CA")
 
 round_trip = st.checkbox("Round Trip", value=False, key="round_trip")
 
@@ -100,7 +100,7 @@ origin_dict = None
 if "origin_results" in st.session_state:
     if st.session_state.origin_results:
         origin_labels = [opt["label"] for opt in st.session_state.origin_results]
-        sel_origin = st.selectbox("Select exact Origin", origin_labels)
+        sel_origin = st.selectbox("**Select exact Origin**", origin_labels)
         if sel_origin:
             origin_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
             if origin_dict:
@@ -125,7 +125,7 @@ if "fwd_results" in st.session_state and st.session_state.fwd_results:
 if "dest_results" in st.session_state:
     if st.session_state.dest_results:
         dest_labels = [opt["label"] for opt in st.session_state.dest_results]
-        sel_dest = st.selectbox("Select exact Destination", dest_labels)
+        sel_dest = st.selectbox("**Select exact Destination**", dest_labels)
         if sel_dest:
             sel_dict = next((opt for opt in st.session_state.dest_results if opt["label"] == sel_dest), None)
             if sel_dict:
@@ -154,24 +154,24 @@ st.header("2. Vehicle Selection")
 col1, col2, col3, col4 = st.columns(4)
 
 years = get_years()
-year = col1.selectbox("Year", years, index=None, placeholder="Select Year") if years else None
+year = col1.selectbox("**Year**", years, index=None, placeholder="Select Year") if years else None
 
 make = None
 if year:
     makes = get_makes(year)
-    make = col2.selectbox("Make", makes, index=None, placeholder="Select Make") if makes else None
+    make = col2.selectbox("**Make**", makes, index=None, placeholder="Select Make") if makes else None
 
 model = None
 if make:
     models = get_models(year, make)
-    model = col3.selectbox("Model", models, index=None, placeholder="Select Model") if models else None
+    model = col3.selectbox("**Model**", models, index=None, placeholder="Select Model") if models else None
 
 trim_id = None
 if model:
     trims = get_trims(year, make, model)
     if trims:
         trim_options = {t["text"]: t["value"] for t in trims}
-        trim_text = col4.selectbox("Trim", list(trim_options.keys()), index=None, placeholder="Select Trim")
+        trim_text = col4.selectbox("**Trim**", list(trim_options.keys()), index=None, placeholder="Select Trim")
         if trim_text:
             trim_id = trim_options[trim_text]
 
@@ -185,6 +185,9 @@ if trim_id:
 
 if "show_city_override" not in st.session_state: st.session_state.show_city_override = False
 if "show_hwy_override" not in st.session_state: st.session_state.show_hwy_override = False
+if "show_gas_override" not in st.session_state: st.session_state.show_gas_override = False
+
+def toggle_gas(): st.session_state.show_gas_override = not st.session_state.show_gas_override
 
 def toggle_city(): st.session_state.show_city_override = not st.session_state.show_city_override
 def toggle_hwy(): st.session_state.show_hwy_override = not st.session_state.show_hwy_override
@@ -214,7 +217,14 @@ st.header("3. Gas Price")
 baseline_price = get_fred_baseline_price()
 st.caption(f"📈 US National Average (FRED): **${baseline_price:.2f}/gal**")
 
-manual_price = st.number_input("Manual Override Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1, help="Defaults to FRED average, but you can override it.")
+manual_price = None
+if not st.session_state.show_gas_override:
+    st.button("➕ Override Gas Price", on_click=toggle_gas)
+else:
+    sc1, sc2 = st.columns([5, 1])
+    manual_price = sc1.number_input("Override Gas Price ($/gal)", min_value=0.1, value=baseline_price, step=0.1)
+    sc2.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+    sc2.button("➖", key="rm_gas", on_click=toggle_gas, help="Remove Gas Price Override")
 
 # --- ACTION BUTTON ---
 st.header("4. Calculate")
@@ -233,7 +243,7 @@ if st.session_state.get("calculate", False):
         st.error("Please finish selecting your vehicle's trim, or click ➕ Override to manually provide your City and Highway MPG.")
         st.stop()
         
-    active_price = manual_price
+    active_price = manual_price if manual_price is not None else baseline_price
     st.info(f"Using gas price: ${active_price:.2f}/gal")
         
     with st.spinner("Finding routes..."):
