@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pydeck as pdk
+import uuid
 from vehicles import get_years, get_makes, get_models, get_trims, get_vehicle_mpg
 from routing import geocode, get_route, process_route_steps, search_addresses
 from prices import get_fred_baseline_price
@@ -11,28 +12,42 @@ st.set_page_config(page_title="Real Gas Cost Calculator", layout="wide")
 st.title("🚗 Real Gas Cost Calculator")
 st.write("A physics-based road-trip gas cost calculator utilizing real road data and EPA vehicle ratings.")
 
+# --- STATE INIT ---
+if "fwd_wps" not in st.session_state: st.session_state.fwd_wps = []
+if "ret_wps" not in st.session_state: st.session_state.ret_wps = []
+
+def add_fwd(): st.session_state.fwd_wps.append(str(uuid.uuid4()))
+def rem_fwd(wp_id): st.session_state.fwd_wps.remove(wp_id)
+def add_ret(): st.session_state.ret_wps.append(str(uuid.uuid4()))
+def rem_ret(wp_id): st.session_state.ret_wps.remove(wp_id)
+
 # --- MAIN PAGE INPUTS ---
 st.header("1. Trip Details")
 st.markdown("**Select your origin & destination address, be sure to hit 'Verify Addresses' before continuing to Vehicle Selection**")
 
 origin_str = st.text_input("Origin Address", "San Francisco, CA")
+
+for idx, wp_id in enumerate(st.session_state.fwd_wps):
+    c1, c2 = st.columns([11, 1])
+    c1.text_input(f"Stop {idx+1} Address", key=f"fwd_val_{wp_id}")
+    c2.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+    c2.button("➖", key=f"rm_fwd_{wp_id}", on_click=rem_fwd, args=(wp_id,), help="Remove this stop")
+    
+st.button("➕ Add Stop", on_click=add_fwd)
+
 dest_str = st.text_input("Destination Address", "Los Angeles, CA")
 
-if "num_stops" not in st.session_state:
-    st.session_state.num_stops = 0
+round_trip = st.checkbox("Round Trip", value=False, key="round_trip")
 
-col_add, col_rem, _ = st.columns([1, 1, 4])
-if col_add.button("➕ Add Stop"):
-    st.session_state.num_stops += 1
-if col_rem.button("➖ Remove Stop"):
-    if st.session_state.num_stops > 0:
-        st.session_state.num_stops -= 1
+if round_trip:
+    st.markdown("#### Return Route Stops")
+    for idx, wp_id in enumerate(st.session_state.ret_wps):
+        c1, c2 = st.columns([11, 1])
+        c1.text_input(f"Return Stop {idx+1} Address", key=f"ret_val_{wp_id}")
+        c2.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+        c2.button("➖", key=f"rm_ret_{wp_id}", on_click=rem_ret, args=(wp_id,), help="Remove this return stop")
+    st.button("➕ Add Return Stop", on_click=add_ret)
 
-waypoints_strs = []
-for i in range(st.session_state.num_stops):
-    waypoints_strs.append(st.text_input(f"Stop {i+1} Address", key=f"stop_in_{i}"))
-    
-st.checkbox("Round Trip", value=False, key="round_trip")
 search_btn = st.button("Verify Addresses")
 
 import streamlit.components.v1 as components
@@ -54,16 +69,20 @@ components.html(
     width=0
 )
 
+# --- SEARCH & GEOCODE ---
 if search_btn:
     st.session_state.origin_results = search_addresses(origin_str)
     st.session_state.dest_results = search_addresses(dest_str)
     
-    # Process waypoints
-    valid_waypoints = [w.strip() for w in waypoints_strs if w.strip()]
-    st.session_state.waypoints_results = [search_addresses(w) for w in valid_waypoints]
+    fwd_queries = [st.session_state.get(f"fwd_val_{w}", "").strip() for w in st.session_state.fwd_wps if st.session_state.get(f"fwd_val_{w}", "").strip()]
+    st.session_state.fwd_results = [search_addresses(q) for q in fwd_queries]
+    
+    ret_queries = [st.session_state.get(f"ret_val_{w}", "").strip() for w in st.session_state.ret_wps if st.session_state.get(f"ret_val_{w}", "").strip()]
+    st.session_state.ret_results = [search_addresses(q) for q in ret_queries]
 
-# Collect all confirmed coordinates
+# --- CONFIRM ADDRESSES ---
 route_coords = []
+origin_dict = None
 
 # Origin
 if "origin_results" in st.session_state:
@@ -71,18 +90,18 @@ if "origin_results" in st.session_state:
         origin_labels = [opt["label"] for opt in st.session_state.origin_results]
         sel_origin = st.selectbox("Select exact Origin", origin_labels)
         if sel_origin:
-            sel_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
-            if sel_dict:
-                route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+            origin_dict = next((opt for opt in st.session_state.origin_results if opt["label"] == sel_origin), None)
+            if origin_dict:
+                route_coords.append((origin_dict["lat"], origin_dict["lon"]))
     else:
         st.warning("Could not find an address match for the Origin.")
 
-# Waypoints
-if "waypoints_results" in st.session_state and st.session_state.waypoints_results:
-    for i, w_results in enumerate(st.session_state.waypoints_results):
+# Fwd Stops
+if "fwd_results" in st.session_state and st.session_state.fwd_results:
+    for i, w_results in enumerate(st.session_state.fwd_results):
         if w_results:
             labels = [opt["label"] for opt in w_results]
-            sel = st.selectbox(f"Select exact Stop {i+1}", labels, key=f"wp_{i}")
+            sel = st.selectbox(f"Select exact Stop {i+1}", labels, key=f"wp_fwd_{i}")
             if sel:
                 sel_dict = next((opt for opt in w_results if opt["label"] == sel), None)
                 if sel_dict:
@@ -101,6 +120,23 @@ if "dest_results" in st.session_state:
                 route_coords.append((sel_dict["lat"], sel_dict["lon"]))
     else:
         st.warning("Could not find an address match for the Destination.")
+
+# Ret Stops
+if round_trip:
+    if "ret_results" in st.session_state and st.session_state.ret_results:
+        for i, w_results in enumerate(st.session_state.ret_results):
+            if w_results:
+                labels = [opt["label"] for opt in w_results]
+                sel = st.selectbox(f"Select exact Return Stop {i+1}", labels, key=f"wp_ret_{i}")
+                if sel:
+                    sel_dict = next((opt for opt in w_results if opt["label"] == sel), None)
+                    if sel_dict:
+                        route_coords.append((sel_dict["lat"], sel_dict["lon"]))
+            else:
+                st.warning(f"Could not find an address match for Return Stop {i+1}. Please try a different search.")
+    
+    if origin_dict:
+        route_coords.append((origin_dict["lat"], origin_dict["lon"]))
 
 st.header("2. Vehicle Selection")
 col1, col2, col3, col4 = st.columns(4)
@@ -158,7 +194,6 @@ if st.session_state.get("calculate", False):
     active_price = manual_price
     st.info(f"Using gas price: ${active_price:.2f}/gal")
         
-    # 3. Routing
     with st.spinner("Finding routes..."):
         routes = get_route(route_coords)
         
@@ -166,7 +201,6 @@ if st.session_state.get("calculate", False):
         st.error("Failed to fetch route from OSRM.")
         st.stop()
         
-    # Optional Route Selection
     if len(routes) > 1:
         route_options = []
         for i, r in enumerate(routes):
@@ -182,7 +216,6 @@ if st.session_state.get("calculate", False):
         route_data = routes[0]
         st.info("No alternate routes available.")
         
-    # 4. Process steps
     with st.spinner("Calculating elevations and segment speeds..."):
         df_steps = process_route_steps(route_data)
             
@@ -190,7 +223,6 @@ if st.session_state.get("calculate", False):
         st.error("No route steps found.")
         st.stop()
         
-    # 5. Physics Model
     total_gallons = 0.0
     total_distance = 0.0
     
@@ -216,10 +248,6 @@ if st.session_state.get("calculate", False):
     df_steps["effective_mpg"] = eff_mpg_list
     df_steps["cost"] = df_steps["gallons_used"] * active_price
     
-    # Round trip logic
-    multiplier = 2 if st.session_state.get('round_trip', False) else 1
-    total_gallons *= multiplier
-    total_distance *= multiplier
     total_cost = total_gallons * active_price
     
     # --- RESULTS UI ---
@@ -232,7 +260,6 @@ if st.session_state.get("calculate", False):
     col3.metric("Total Distance", f"{total_distance:.1f} mi")
     col4.metric("Avg Effective MPG", f"{(total_distance/total_gallons):.1f}" if total_gallons > 0 else "N/A")
     
-    # Map
     st.subheader("Route Map")
     path = []
     for _, row in df_steps.iterrows():
@@ -259,17 +286,12 @@ if st.session_state.get("calculate", False):
         r = pdk.Deck(layers=[layer], initial_view_state=view_state, map_style="road")
         st.pydeck_chart(r)
         
-    # Table
-    if multiplier == 2:
-        st.subheader("One-Way Segment Breakdown (Multiplied by 2 for Totals above)")
-    else:
-        st.subheader("Segment Breakdown")
+    st.subheader("Segment Breakdown")
         
     df_steps["cumulative_cost"] = df_steps["cost"].cumsum()
     display_df = df_steps[["name", "distance_mi", "avg_speed_mph", "grade_pct", "effective_mpg", "cost", "cumulative_cost"]].copy()
     display_df.rename(columns={"cost": "Segment Cost", "cumulative_cost": "Running Total"}, inplace=True)
     
-    # Formatting for readability
     display_df["distance_mi"] = display_df["distance_mi"].map("{:.2f}".format)
     display_df["avg_speed_mph"] = display_df["avg_speed_mph"].map("{:.1f}".format)
     display_df["grade_pct"] = display_df["grade_pct"].map("{:.1f}%".format)
