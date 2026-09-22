@@ -5,7 +5,7 @@ from typing import Optional
 
 
 @st.cache_data(ttl=86400)
-def get_fred_baseline_price(grade: str = "Regular") -> float:
+def fetch_fred_price(grade: str = "Regular") -> float:
     """Fetch the latest US Gas Price from FRED as a free baseline based on grade."""
     
     grade_map = {

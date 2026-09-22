@@ -4,7 +4,7 @@ import pydeck as pdk
 import uuid
 from vehicles import get_years, get_makes, get_models, get_trims, get_vehicle_mpg
 from routing import geocode, get_route, process_route_steps, search_addresses
-from prices import get_fred_baseline_price
+from prices import fetch_fred_price
 from physics import calculate_segment_fuel
 
 st.set_page_config(page_title="Real Gas Cost Calculator", layout="wide")
@@ -216,7 +216,7 @@ with col_mpg2:
 st.header("3. Gas Price")
 fuel_grade = st.radio("Select Fuel Grade", ["Regular", "Midgrade (Blend)", "Premium", "Diesel"], horizontal=True)
 
-baseline_price = get_fred_baseline_price(fuel_grade)
+baseline_price = fetch_fred_price(fuel_grade)
 st.caption(f"📈 US National Average ({fuel_grade}): **${baseline_price:.2f}/gal**")
 
 manual_price = None
