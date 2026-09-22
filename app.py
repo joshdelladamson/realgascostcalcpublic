@@ -13,6 +13,7 @@ st.write("A physics-based road-trip gas cost calculator utilizing real road data
 
 # --- MAIN PAGE INPUTS ---
 st.header("1. Trip Details")
+st.markdown("**Select your origin & destination address, be sure to hit 'Verify Addresses' before continuing to Vehicle Selection**")
 
 origin_str = st.text_input("Origin Address", "San Francisco, CA")
 dest_str = st.text_input("Destination Address", "Los Angeles, CA")
