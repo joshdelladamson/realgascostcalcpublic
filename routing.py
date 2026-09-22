@@ -39,12 +39,25 @@ def search_addresses(query: str) -> List[Dict[str, Any]]:
             if geom.get("type") == "Point":
                 lon, lat = geom["coordinates"]
                 name = props.get("name", "")
+                housenumber = props.get("housenumber", "")
+                street = props.get("street", "")
                 city = props.get("city", props.get("town", props.get("village", "")))
                 state = props.get("state", "")
+                postcode = props.get("postcode", "")
                 country = props.get("country", "")
                 
-                parts = [p for p in [name, city, state, country] if p]
-                label = ", ".join(parts)
+                address_line = f"{housenumber} {street}".strip()
+                parts = [p for p in [name, address_line, city, state, postcode, country] if p]
+                
+                # Deduplicate consecutive identical parts (sometimes name is same as street)
+                seen = set()
+                dedup_parts = []
+                for p in parts:
+                    if p.lower() not in seen:
+                        seen.add(p.lower())
+                        dedup_parts.append(p)
+                        
+                label = ", ".join(dedup_parts)
                 
                 state_abbr = "US"
                 if state:
@@ -77,15 +90,8 @@ def search_addresses(query: str) -> List[Dict[str, Any]]:
             lon = float(item["lon"])
             address = item.get("address", {})
             
-            name = address.get("road", address.get("amenity", address.get("suburb", "")))
-            city = address.get("city", address.get("town", address.get("village", "")))
+            label = item.get("display_name", "Unknown Location")
             state = address.get("state", "")
-            country = address.get("country", "")
-            
-            parts = [p for p in [name, city, state, country] if p]
-            label = ", ".join(parts)
-            if not label:
-                label = item.get("display_name", "Unknown Location")
                 
             state_abbr = "US"
             if state:
