@@ -14,9 +14,23 @@ st.write("A physics-based road-trip gas cost calculator utilizing real road data
 # --- MAIN PAGE INPUTS ---
 st.header("1. Trip Details")
 
+if "num_stops" not in st.session_state:
+    st.session_state.num_stops = 0
+
+col_add, col_rem, _ = st.columns([1, 1, 4])
+if col_add.button("➕ Add Stop"):
+    st.session_state.num_stops += 1
+if col_rem.button("➖ Remove Stop"):
+    if st.session_state.num_stops > 0:
+        st.session_state.num_stops -= 1
+
 with st.form("trip_form"):
     origin_str = st.text_input("Origin Address", "San Francisco, CA")
-    waypoints_str = st.text_area("Additional Stops (one per line, optional)", placeholder="e.g., Las Vegas, NV\nZion National Park")
+    
+    waypoints_strs = []
+    for i in range(st.session_state.num_stops):
+        waypoints_strs.append(st.text_input(f"Stop {i+1} Address", key=f"stop_in_{i}"))
+        
     dest_str = st.text_input("Destination Address", "Los Angeles, CA")
     st.checkbox("Round Trip", value=False, key="round_trip")
     search_btn = st.form_submit_button("Search Addresses")
@@ -26,8 +40,8 @@ if search_btn:
     st.session_state.dest_results = search_addresses(dest_str)
     
     # Process waypoints
-    waypoint_lines = [line.strip() for line in waypoints_str.split('\n') if line.strip()]
-    st.session_state.waypoints_results = [search_addresses(w) for w in waypoint_lines]
+    valid_waypoints = [w.strip() for w in waypoints_strs if w.strip()]
+    st.session_state.waypoints_results = [search_addresses(w) for w in valid_waypoints]
 
 # Collect all confirmed coordinates
 route_coords = []

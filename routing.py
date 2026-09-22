@@ -84,9 +84,12 @@ def get_route(waypoints: List[Tuple[float, float]]) -> Optional[List[Dict[str, A
         "steps": "true",
         "geometries": "geojson",
         "overview": "full",
-        "annotations": "true",
-        "alternatives": "2"
+        "annotations": "true"
     }
+    
+    # OSRM only supports alternatives when there are exactly 2 coordinates
+    if len(waypoints) == 2:
+        params["alternatives"] = "2"
     
     try:
         response = requests.get(url, params=params, timeout=15)
