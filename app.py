@@ -183,9 +183,32 @@ if trim_id:
     else:
         st.warning("Could not fetch EPA rating.")
 
+if "show_city_override" not in st.session_state: st.session_state.show_city_override = False
+if "show_hwy_override" not in st.session_state: st.session_state.show_hwy_override = False
+
+def toggle_city(): st.session_state.show_city_override = not st.session_state.show_city_override
+def toggle_hwy(): st.session_state.show_hwy_override = not st.session_state.show_hwy_override
+
 col_mpg1, col_mpg2 = st.columns(2)
-manual_city_mpg = col_mpg1.number_input("Override City MPG", value=float(vehicle_mpg['city']) if vehicle_mpg else 25.0)
-manual_hwy_mpg = col_mpg2.number_input("Override Highway MPG", value=float(vehicle_mpg['highway']) if vehicle_mpg else 35.0)
+manual_city_mpg = None
+with col_mpg1:
+    if not st.session_state.show_city_override:
+        st.button("➕ Override City MPG", on_click=toggle_city)
+    else:
+        sc1, sc2 = st.columns([5, 1])
+        manual_city_mpg = sc1.number_input("Override City MPG", value=float(vehicle_mpg['city']) if vehicle_mpg else 25.0)
+        sc2.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+        sc2.button("➖", key="rm_city", on_click=toggle_city, help="Remove City Override")
+
+manual_hwy_mpg = None
+with col_mpg2:
+    if not st.session_state.show_hwy_override:
+        st.button("➕ Override Highway MPG", on_click=toggle_hwy)
+    else:
+        sc1, sc2 = st.columns([5, 1])
+        manual_hwy_mpg = sc1.number_input("Override Highway MPG", value=float(vehicle_mpg['highway']) if vehicle_mpg else 35.0)
+        sc2.markdown("<div style='margin-top:28px'></div>", unsafe_allow_html=True)
+        sc2.button("➖", key="rm_hwy", on_click=toggle_hwy, help="Remove Highway Override")
 
 st.header("3. Gas Price")
 baseline_price = get_fred_baseline_price()
@@ -201,6 +224,13 @@ if st.button("Calculate Cost", type="primary"):
 if st.session_state.get("calculate", False):
     if len(route_coords) < 2:
         st.error("Please search and select at least an origin and destination address.")
+        st.stop()
+        
+    active_city_mpg = manual_city_mpg if manual_city_mpg is not None else (float(vehicle_mpg['city']) if vehicle_mpg else None)
+    active_hwy_mpg = manual_hwy_mpg if manual_hwy_mpg is not None else (float(vehicle_mpg['highway']) if vehicle_mpg else None)
+    
+    if active_city_mpg is None or active_hwy_mpg is None:
+        st.error("Please finish selecting your vehicle's trim, or click ➕ Override to manually provide your City and Highway MPG.")
         st.stop()
         
     active_price = manual_price
@@ -247,8 +277,8 @@ if st.session_state.get("calculate", False):
             speed_mph=row["avg_speed_mph"],
             speed_limit_mph=row.get("speed_limit_mph", 0),
             grade_pct=row.get("grade_pct", 0),
-            city_mpg=manual_city_mpg,
-            highway_mpg=manual_hwy_mpg
+            city_mpg=active_city_mpg,
+            highway_mpg=active_hwy_mpg
         )
         gallons_list.append(gals)
         eff_mpg_list.append(eff)
