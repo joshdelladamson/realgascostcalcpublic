@@ -15,6 +15,7 @@ st.write("A physics-based road-trip gas cost calculator utilizing real road data
 # --- STATE INIT ---
 if "fwd_wps" not in st.session_state: st.session_state.fwd_wps = []
 if "ret_wps" not in st.session_state: st.session_state.ret_wps = []
+if "prev_round_trip" not in st.session_state: st.session_state.prev_round_trip = False
 
 def add_fwd(): st.session_state.fwd_wps.append(str(uuid.uuid4()))
 def rem_fwd(wp_id): st.session_state.fwd_wps.remove(wp_id)
@@ -38,6 +39,17 @@ st.button("➕ Add Stop", on_click=add_fwd)
 dest_str = st.text_input("Destination Address", "Los Angeles, CA")
 
 round_trip = st.checkbox("Round Trip", value=False, key="round_trip")
+
+if round_trip and not st.session_state.prev_round_trip:
+    # Just checked! Auto-populate return stops in reverse order
+    st.session_state.ret_wps = []
+    for fwd_id in reversed(st.session_state.fwd_wps):
+        new_id = str(uuid.uuid4())
+        st.session_state.ret_wps.append(new_id)
+        # Pre-fill the input widget state so the text matches
+        st.session_state[f"ret_val_{new_id}"] = st.session_state.get(f"fwd_val_{fwd_id}", "")
+
+st.session_state.prev_round_trip = round_trip
 
 if round_trip:
     st.markdown("#### Return Route Stops")
